@@ -1,0 +1,46 @@
+# ── Podcast Generator — Python dependencies ──────────────────────────────────
+# RunPod Pod: Ubuntu 22.04, Python 3.10+, CUDA 12.x
+# pip install -r requirements.txt
+
+# ── Web UI ────────────────────────────────────────────────────────────────────
+gradio==4.44.1
+fastapi>=0.111.0
+uvicorn>=0.30.0
+
+# ── Environment & config ──────────────────────────────────────────────────────
+python-dotenv==1.0.1
+
+# ── HTTP client ───────────────────────────────────────────────────────────────
+requests==2.32.3
+httpx==0.27.2
+aiohttp==3.10.5            # Async HTTP (зурагуудыг параллел татахад)
+aiofiles>=22.0,<24.0       # [FIX] gradio==4.44.1 шаардлага: aiofiles<24.0,>=22.0
+
+# ── xAI Grok (OpenAI-compatible client) ──────────────────────────────────────
+openai==1.51.0             # xAI API нь OpenAI client-тэй нийцтэй
+
+# ── Аудио боловсруулалт ───────────────────────────────────────────────────────
+pydub==0.25.1              # WAV нэгтгэх
+soundfile==0.12.1          # WAV унших/бичих
+numpy==1.26.4
+
+# ── Зураг боловсруулалт ───────────────────────────────────────────────────────
+Pillow==10.4.0             # Зураг resize, overlay
+opencv-python-headless==4.10.0.84  # Видео фрэйм боловсруулалт
+
+# ── Видео (FFmpeg Python wrapper) ────────────────────────────────────────────
+ffmpeg-python==0.2.0       # FFmpeg pipeline builder
+# Note: системд ffmpeg суулгасан байх ёстой:
+#   apt-get install -y ffmpeg
+
+# ── ASS subtitle ─────────────────────────────────────────────────────────────
+# ass subtitle нь цэвэр Python-оор бичигдэнэ, гадны сан хэрэггүй
+
+# ── Utility ───────────────────────────────────────────────────────────────────
+tqdm==4.66.5               # Progress bar (лог)
+tenacity==9.0.0            # Retry логик (API дуудлагад)
+pydantic==2.9.2            # Data validation
+python-multipart==0.0.12   # Gradio file upload
+
+# ── Логгинг ───────────────────────────────────────────────────────────────────
+colorlog==6.8.2
