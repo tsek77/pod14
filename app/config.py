@@ -1,0 +1,367 @@
+"""
+config.py — .env файл унших/хадгалах, API key менежмент
+
+Онцлог:
+  - .env байхгүй ч апп нормал нээгдэнэ (safe_mode)
+  - UI-ээс оруулсан утгыг .env-д шууд бичнэ
+  - API key байгаа эсэхийг шалгаж status буцаана
+  - RunPod Volume path, загвар, параметр бүгдийг энд удирдана
+"""
+
+from __future__ import annotations
+
+import os
+import logging
+from dataclasses import dataclass, field, fields, asdict
+from pathlib import Path
+from typing import Optional
+from dotenv import dotenv_values, set_key, unset_key
+
+logger = logging.getLogger("config")
+
+# ── .env файлын байршил ───────────────────────────────────────────────────────
+# Скрипттэй нэг хавтаст .env файл хайна, эсвэл DOTENV_PATH env-ээс авна
+_DEFAULT_ENV_PATH = Path(__file__).parent / ".env"
+ENV_PATH = Path(os.environ.get("DOTENV_PATH", str(_DEFAULT_ENV_PATH)))
+
+
+# ── Тохиргооны dataclass ──────────────────────────────────────────────────────
+@dataclass
+class Config:
+    """
+    Бүх API key, загвар, параметрийг агуулна.
+    .env файлаас ачаалагдана. Байхгүй утга нь None эсвэл default.
+
+    safe_mode=True үед .env байхгүй ч алдаа гаргахгүй.
+    """
+
+    # ── Inworld TTS-2 ─────────────────────────────────────────────────────
+    INWORLD_API_KEY: Optional[str]    = None
+    INWORLD_VOICE_ID: str             = "en-US-Neural2-D"   # TTS дуу хоолой
+    INWORLD_LANGUAGE: str             = "en-EN"             # Монгол хэл
+    INWORLD_TTS_MAX_CHARS: int        = 2000                 # Inworld хязгаар
+    INWORLD_CHUNK_TARGET: int         = 1600                 # Chunk зорилтот хэмжээ
+
+    # ── xAI Grok (промпт үүсгэгч) ─────────────────────────────────────────
+    XAI_API_KEY: Optional[str]        = None
+    XAI_MODEL: str                    = "grok-4.3"
+    XAI_BASE_URL: str                 = "https://api.x.ai/v1"
+    XAI_PROMPT_TEMPERATURE: float     = 0.8
+
+    # ── RunPod Serverless (Flux.1 Klein зураг) ────────────────────────────
+    RUNPOD_API_KEY: Optional[str]     = None
+    RUNPOD_FLUX_ENDPOINT_ID: str      = ""      # Serverless endpoint ID
+    RUNPOD_FLUX_MODEL: str            = "flux-1-klein"
+    RUNPOD_FLUX_WIDTH: int            = 1920    # 16:9 → 1920×1080
+    RUNPOD_FLUX_HEIGHT: int           = 1080
+    RUNPOD_FLUX_STEPS: int            = 20
+    RUNPOD_FLUX_GUIDANCE: float       = 7.5
+    RUNPOD_FLUX_TIMEOUT: int          = 300     # секунд
+
+    # ── RunPod Pod (InfiniteTalk + Render) ────────────────────────────────
+    RUNPOD_POD_ID: str                = ""
+    RUNPOD_POD_API_KEY: Optional[str] = None    # Pod API key (serverless-аас өөр байж болно)
+    RUNPOD_VOLUME_PATH: str           = "/workspace"  # Volume mount path
+
+    # ── InfiniteTalk (ярьдаг толгой) ─────────────────────────────────────
+    INFINITETALK_ENDPOINT: str        = ""      # Pod дэх InfiniteTalk API
+    INFINITETALK_AVATAR_IMAGE: str    = ""      # Аватарын зураг (volume path)
+    TALKING_HEAD_SCALE: float         = 0.22    # Видеоны 22% хэмжээтэй (баруун доод)
+    TALKING_HEAD_MARGIN: int          = 20      # Пиксел зай
+
+    # ── Видео гаралт ──────────────────────────────────────────────────────
+    OUTPUT_VIDEO_WIDTH: int           = 1920
+    OUTPUT_VIDEO_HEIGHT: int          = 1080
+    OUTPUT_FPS: int                   = 30
+    OUTPUT_VIDEO_BITRATE: str         = "8M"
+    OUTPUT_AUDIO_BITRATE: str         = "192k"
+    OUTPUT_DIR: str                   = "/workspace/output"
+    TEMP_DIR: str                     = "/tmp/podcast_tmp"
+
+    # ── Зургийн стиль (Flux prompt дагалдах системийн мэдээлэл) ──────────
+    IMAGE_STYLE_SUFFIX: str = (
+        "cinematic historical photography, 8K ultra-detailed, "
+        "dramatic lighting, epic wide shot, film grain, "
+        "aspect ratio 16:9, award-winning cinematography"
+    )
+    IMAGE_NEGATIVE_PROMPT: str = (
+        "cartoon, anime, illustration, modern, text, watermark, "
+        "blurry, low quality, distorted, nsfw"
+    )
+
+    # ── Internal ──────────────────────────────────────────────────────────
+    _safe_mode: bool = field(default=False, repr=False)
+    _env_path: Path  = field(default=ENV_PATH, repr=False)
+
+    def __init__(self, safe_mode: bool = False, env_path: Path = ENV_PATH):
+        """
+        .env файлаас утгуудыг ачаалж dataclass-д оноона.
+        safe_mode=True → файл байхгүй ч алдаа гаргахгүй.
+        """
+        object.__setattr__(self, "_safe_mode", safe_mode)
+        object.__setattr__(self, "_env_path", Path(env_path))
+
+        # Dataclass field-үүдийн default утгыг эхлэх
+        for f in fields(self.__class__):
+            if f.name.startswith("_"):
+                continue
+            object.__setattr__(self, f.name, f.default)
+
+        # .env файлаас унших
+        self._load_from_env()
+
+    # ── Унших ──────────────────────────────────────────────────────────────
+    def _load_from_env(self) -> None:
+        """
+        .env файл болон process env-ээс утгуудыг унших.
+        Process env нь .env-ийг дарна (RunPod secrets дэмжих).
+        """
+        env_file_values: dict = {}
+
+        if self._env_path.exists():
+            try:
+                env_file_values = dotenv_values(str(self._env_path))
+                logger.info(f".env ачаалагдлаа: {self._env_path}")
+            except Exception as exc:
+                if not self._safe_mode:
+                    raise
+                logger.warning(f".env унших алдаа: {exc}")
+        else:
+            logger.info(f".env файл олдсонгүй ({self._env_path}) — default утгаар ажиллана.")
+
+        # Field тус бүрт утга онооно: process env > .env file > default
+        for f in fields(self.__class__):
+            if f.name.startswith("_"):
+                continue
+
+            # Process env нь .env-ийг давна
+            raw = os.environ.get(f.name) or env_file_values.get(f.name)
+            if raw is None:
+                continue
+
+            try:
+                casted = self._cast(raw, f.type)
+                object.__setattr__(self, f.name, casted)
+            except (ValueError, TypeError) as exc:
+                logger.warning(f"Config field '{f.name}' cast алдаа: {exc} — default хэрэглэнэ.")
+
+    @staticmethod
+    def _cast(value: str, type_hint: str):
+        """String утгыг field-ийн type-д хөрвүүлнэ."""
+        # type_hint нь 'int', 'float', 'bool', 'Optional[str]', гэх мэт
+        t = str(type_hint).lower()
+        if "int" in t:
+            return int(value)
+        if "float" in t:
+            return float(value)
+        if "bool" in t:
+            return value.lower() in ("true", "1", "yes")
+        return value  # str / Optional[str]
+
+    # ── Хадгалах ──────────────────────────────────────────────────────────
+    def save_to_env(self, updates: dict[str, str]) -> dict[str, str]:
+        """
+        updates dict-н утгуудыг .env файлд бичиж, config-д тусгана.
+
+        Args:
+            updates: {"INWORLD_API_KEY": "abc...", ...}
+
+        Returns:
+            {"status": "ok" | "error", "message": "..."}
+        """
+        try:
+            # .env файл байхгүй бол үүсгэнэ
+            self._env_path.parent.mkdir(parents=True, exist_ok=True)
+            if not self._env_path.exists():
+                self._env_path.touch()
+                logger.info(f"Шинэ .env файл үүсгэлээ: {self._env_path}")
+
+            changed: list[str] = []
+            for key, value in updates.items():
+                if not key or key.startswith("_"):
+                    continue
+
+                # Хоосон утга → key устгана
+                if value == "" or value is None:
+                    try:
+                        unset_key(str(self._env_path), key)
+                        object.__setattr__(self, key, None)
+                        changed.append(f"✗ {key} (устгагдлаа)")
+                    except Exception:
+                        pass
+                    continue
+
+                set_key(str(self._env_path), key, str(value))
+                changed.append(f"✓ {key}")
+
+                # Config object-д тусгах
+                for f in fields(self.__class__):
+                    if f.name == key:
+                        try:
+                            object.__setattr__(self, key, self._cast(str(value), f.type))
+                        except Exception:
+                            object.__setattr__(self, key, value)
+                        break
+
+            logger.info(f".env шинэчлэгдлэн хадгалагдлаа: {', '.join(changed)}")
+            return {"status": "ok", "message": f"Хадгалагдлаа: {', '.join(changed)}"}
+
+        except PermissionError as exc:
+            logger.error(f".env хадгалах эрхгүй: {exc}")
+            return {"status": "error", "message": f"Эрхгүй: {exc}"}
+        except Exception as exc:
+            logger.error(f".env хадгалах алдаа: {exc}")
+            return {"status": "error", "message": str(exc)}
+
+    # ── Шалгалт ───────────────────────────────────────────────────────────
+    def get_api_status(self) -> dict[str, dict]:
+        """
+        Шаардлагатай API key-үүдийн байдлыг шалгаж буцаана.
+
+        Returns:
+            {
+                "inworld": {"ok": bool, "label": str, "hint": str},
+                "xai":     {"ok": bool, "label": str, "hint": str},
+                "runpod":  {"ok": bool, "label": str, "hint": str},
+            }
+        """
+        def _chk(val: Optional[str], name: str, url: str) -> dict:
+            ok = bool(val and val.strip())
+            return {
+                "ok":    ok,
+                "label": f"✅ {name} тохируулагдсан" if ok else f"⚠️ {name} тохируулаагүй",
+                "hint":  "" if ok else f"{url} дээр авна уу",
+            }
+
+        return {
+            "inworld": _chk(
+                self.INWORLD_API_KEY,
+                "Inworld API Key",
+                "https://studio.inworld.ai",
+            ),
+            "xai": _chk(
+                self.XAI_API_KEY,
+                "xAI (Grok) API Key",
+                "https://console.x.ai",
+            ),
+            "runpod_serverless": _chk(
+                self.RUNPOD_API_KEY,
+                "RunPod API Key",
+                "https://www.runpod.io/console/user/settings",
+            ),
+            "runpod_flux_endpoint": {
+                "ok":    bool(self.RUNPOD_FLUX_ENDPOINT_ID),
+                "label": (
+                    f"✅ Flux Endpoint: {self.RUNPOD_FLUX_ENDPOINT_ID}"
+                    if self.RUNPOD_FLUX_ENDPOINT_ID
+                    else "⚠️ Flux Endpoint ID тохируулаагүй"
+                ),
+                "hint": "RunPod Serverless > Endpoints > ID-г хуулна уу",
+            },
+            "infinitetalk": {
+                "ok":    bool(self.INFINITETALK_ENDPOINT),
+                "label": (
+                    f"✅ InfiniteTalk: {self.INFINITETALK_ENDPOINT}"
+                    if self.INFINITETALK_ENDPOINT
+                    else "⚠️ InfiniteTalk endpoint тохируулаагүй"
+                ),
+                "hint": "Pod дэх InfiniteTalk API URL",
+            },
+        }
+
+    def is_ready_for_pipeline(self) -> tuple[bool, list[str]]:
+        """
+        Pipeline ажиллуулж болох эсэхийг шалгана.
+
+        Returns:
+            (ready: bool, missing: list[str])
+        """
+        status = self.get_api_status()
+        missing = [
+            info["label"]
+            for info in status.values()
+            if not info["ok"]
+        ]
+        return len(missing) == 0, missing
+
+    def as_safe_dict(self) -> dict:
+        """
+        API key-үүдийг маскалж dict буцаана (UI-д харуулахад).
+        """
+        d = {}
+        for f in fields(self.__class__):
+            if f.name.startswith("_"):
+                continue
+            val = getattr(self, f.name)
+            # API key-г ***-ээр нуух
+            if "KEY" in f.name.upper() and val:
+                masked = str(val)[:4] + "****" + str(val)[-4:] if len(str(val)) > 8 else "****"
+                d[f.name] = masked
+            else:
+                d[f.name] = val
+        return d
+
+    # ── Repr ──────────────────────────────────────────────────────────────
+    def __repr__(self) -> str:
+        safe = self.as_safe_dict()
+        parts = [f"{k}={v!r}" for k, v in list(safe.items())[:6]]
+        return f"Config({', '.join(parts)}, ...)"
+
+
+# ── Тохиргооны бүлэг (settings_tab.py-д UI үүсгэхэд хэрэглэнэ) ──────────────
+CONFIG_GROUPS: list[dict] = [
+    {
+        "id":     "inworld",
+        "title":  "🎙️ Inworld TTS-2",
+        "fields": [
+            {"key": "INWORLD_API_KEY",      "label": "API Key",         "type": "password", "placeholder": "inworld_..."},
+            {"key": "INWORLD_VOICE_ID",     "label": "Дуу хоолой ID",   "type": "text",     "placeholder": "en-US-Neural2-D"},
+            {"key": "INWORLD_LANGUAGE",     "label": "Хэл",             "type": "text",     "placeholder": "mn-MN"},
+            {"key": "INWORLD_CHUNK_TARGET", "label": "Chunk хэмжээ",    "type": "number",   "placeholder": "1600"},
+        ],
+    },
+    {
+        "id":     "xai",
+        "title":  "🤖 xAI Grok (промпт үүсгэгч)",
+        "fields": [
+            {"key": "XAI_API_KEY",              "label": "API Key",      "type": "password", "placeholder": "xai-..."},
+            {"key": "XAI_MODEL",                "label": "Загвар",       "type": "text",     "placeholder": "grok-3-latest"},
+            {"key": "XAI_PROMPT_TEMPERATURE",   "label": "Температур",   "type": "number",   "placeholder": "0.7"},
+        ],
+    },
+    {
+        "id":     "runpod",
+        "title":  "☁️ RunPod Serverless (Flux.1 Klein)",
+        "fields": [
+            {"key": "RUNPOD_API_KEY",           "label": "API Key",             "type": "password", "placeholder": "rp_..."},
+            {"key": "RUNPOD_FLUX_ENDPOINT_ID",  "label": "Flux Endpoint ID",    "type": "text",     "placeholder": "abc123xyz"},
+            {"key": "RUNPOD_FLUX_WIDTH",        "label": "Зургийн өргөн",       "type": "number",   "placeholder": "1920"},
+            {"key": "RUNPOD_FLUX_HEIGHT",       "label": "Зургийн өндөр",       "type": "number",   "placeholder": "1080"},
+            {"key": "RUNPOD_FLUX_STEPS",        "label": "Inference алхам",     "type": "number",   "placeholder": "20"},
+            {"key": "RUNPOD_FLUX_GUIDANCE",     "label": "Guidance Scale",      "type": "number",   "placeholder": "7.5"},
+        ],
+    },
+    {
+        "id":     "pod",
+        "title":  "🖥️ RunPod Pod (InfiniteTalk + Рэндэр)",
+        "fields": [
+            {"key": "RUNPOD_POD_ID",            "label": "Pod ID",              "type": "text",     "placeholder": "abc123"},
+            {"key": "RUNPOD_POD_API_KEY",        "label": "Pod API Key",         "type": "password", "placeholder": "rp_..."},
+            {"key": "RUNPOD_VOLUME_PATH",        "label": "Volume Path",         "type": "text",     "placeholder": "/workspace"},
+            {"key": "INFINITETALK_ENDPOINT",     "label": "InfiniteTalk URL",    "type": "text",     "placeholder": "http://pod-ip:8080"},
+            {"key": "INFINITETALK_AVATAR_IMAGE", "label": "Аватар зураг path",   "type": "text",     "placeholder": "/workspace/avatar.png"},
+        ],
+    },
+    {
+        "id":     "output",
+        "title":  "🎬 Видео гаралт",
+        "fields": [
+            {"key": "OUTPUT_VIDEO_WIDTH",   "label": "Видео өргөн",         "type": "number", "placeholder": "1920"},
+            {"key": "OUTPUT_VIDEO_HEIGHT",  "label": "Видео өндөр",         "type": "number", "placeholder": "1080"},
+            {"key": "OUTPUT_FPS",           "label": "FPS",                 "type": "number", "placeholder": "30"},
+            {"key": "OUTPUT_VIDEO_BITRATE", "label": "Видео bitrate",       "type": "text",   "placeholder": "8M"},
+            {"key": "OUTPUT_DIR",           "label": "Гаралтын хавтас",     "type": "text",   "placeholder": "/workspace/output"},
+            {"key": "TEMP_DIR",             "label": "Түр хавтас",          "type": "text",   "placeholder": "/tmp/podcast_tmp"},
+        ],
+    },
+]
