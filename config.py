@@ -38,7 +38,7 @@ class Config:
     # ── Inworld TTS-2 ─────────────────────────────────────────────────────
     INWORLD_API_KEY: Optional[str]    = None
     INWORLD_VOICE_ID: str             = "en-US-Neural2-D"   # TTS дуу хоолой
-    INWORLD_LANGUAGE: str             = "mn-MN"             # Монгол хэл
+    INWORLD_LANGUAGE: str             = "en-EN"             # Монгол хэл
     INWORLD_TTS_MAX_CHARS: int        = 2000                 # Inworld хязгаар
     INWORLD_CHUNK_TARGET: int         = 1600                 # Chunk зорилтот хэмжээ
 
@@ -61,7 +61,7 @@ class Config:
     # ── RunPod Pod (InfiniteTalk + Render) ────────────────────────────────
     RUNPOD_POD_ID: str                = ""
     RUNPOD_POD_API_KEY: Optional[str] = None    # Pod API key (serverless-аас өөр байж болно)
-    RUNPOD_VOLUME_PATH: str           = "/runpod-volume/podcast"  # Volume mount path
+    RUNPOD_VOLUME_PATH: str           = "/workspace"  # Volume mount path
 
     # ── InfiniteTalk (ярьдаг толгой) ─────────────────────────────────────
     INFINITETALK_ENDPOINT: str        = ""      # Pod дэх InfiniteTalk API
@@ -75,7 +75,7 @@ class Config:
     OUTPUT_FPS: int                   = 30
     OUTPUT_VIDEO_BITRATE: str         = "8M"
     OUTPUT_AUDIO_BITRATE: str         = "192k"
-    OUTPUT_DIR: str                   = "/runpod-volume/podcast/output"
+    OUTPUT_DIR: str                   = "/workspace/output"
     TEMP_DIR: str                     = "/tmp/podcast_tmp"
 
     # ── Зургийн стиль (Flux prompt дагалдах системийн мэдээлэл) ──────────
@@ -347,9 +347,9 @@ CONFIG_GROUPS: list[dict] = [
         "fields": [
             {"key": "RUNPOD_POD_ID",            "label": "Pod ID",              "type": "text",     "placeholder": "abc123"},
             {"key": "RUNPOD_POD_API_KEY",        "label": "Pod API Key",         "type": "password", "placeholder": "rp_..."},
-            {"key": "RUNPOD_VOLUME_PATH",        "label": "Volume Path",         "type": "text",     "placeholder": "/runpod-volume/podcast"},
+            {"key": "RUNPOD_VOLUME_PATH",        "label": "Volume Path",         "type": "text",     "placeholder": "/workspace"},
             {"key": "INFINITETALK_ENDPOINT",     "label": "InfiniteTalk URL",    "type": "text",     "placeholder": "http://pod-ip:8080"},
-            {"key": "INFINITETALK_AVATAR_IMAGE", "label": "Аватар зураг path",   "type": "text",     "placeholder": "/runpod-volume/avatar.png"},
+            {"key": "INFINITETALK_AVATAR_IMAGE", "label": "Аватар зураг path",   "type": "text",     "placeholder": "/workspace/avatar.png"},
         ],
     },
     {
@@ -360,7 +360,7 @@ CONFIG_GROUPS: list[dict] = [
             {"key": "OUTPUT_VIDEO_HEIGHT",  "label": "Видео өндөр",         "type": "number", "placeholder": "1080"},
             {"key": "OUTPUT_FPS",           "label": "FPS",                 "type": "number", "placeholder": "30"},
             {"key": "OUTPUT_VIDEO_BITRATE", "label": "Видео bitrate",       "type": "text",   "placeholder": "8M"},
-            {"key": "OUTPUT_DIR",           "label": "Гаралтын хавтас",     "type": "text",   "placeholder": "/runpod-volume/podcast/output"},
+            {"key": "OUTPUT_DIR",           "label": "Гаралтын хавтас",     "type": "text",   "placeholder": "/workspace/output"},
             {"key": "TEMP_DIR",             "label": "Түр хавтас",          "type": "text",   "placeholder": "/tmp/podcast_tmp"},
         ],
     },
