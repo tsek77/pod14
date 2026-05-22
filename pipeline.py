@@ -259,11 +259,14 @@ class PodcastPipeline:
 
             segments = prompt_result.segments
             for seg in segments:
+                summary_text = (
+                    f"{seg.scene_summary[:60]}…"
+                    if len(seg.scene_summary) > 60
+                    else seg.scene_summary
+                )
                 yield self._prog(
                     4,
-                    f"  ✅ Сцен {seg.index+1} ({seg.duration_sec:.1f}с): "
-                    f"{seg.scene_summary[:60]}…" if len(seg.scene_summary) > 60
-                    else seg.scene_summary
+                    f"  ✅ Сцен {seg.index+1} ({seg.duration_sec:.1f}с): {summary_text}"
                 )
 
             # ── Алхам 5: Зургууд ─────────────────────────────────────────

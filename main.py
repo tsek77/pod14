@@ -77,13 +77,6 @@ def create_app() -> gr.Blocks:
 
     with gr.Blocks(
         title=APP_TITLE,
-        theme=gr.themes.Base(
-            primary_hue=gr.themes.colors.red,
-            secondary_hue=gr.themes.colors.blue,
-            neutral_hue=gr.themes.colors.slate,
-            font=[gr.themes.GoogleFont("Inter"), "sans-serif"],
-        ),
-        css=CUSTOM_CSS,
     ) as app:
 
         # ── Header ──────────────────────────────────────────────────────────
@@ -146,6 +139,13 @@ def main():
         server_port=port,
         share=share,
         show_error=True,
+        theme=gr.themes.Base(
+            primary_hue=gr.themes.colors.red,
+            secondary_hue=gr.themes.colors.blue,
+            neutral_hue=gr.themes.colors.slate,
+            font=[gr.themes.GoogleFont("Inter"), "sans-serif"],
+        ),
+        css=CUSTOM_CSS,
     )
 
 
