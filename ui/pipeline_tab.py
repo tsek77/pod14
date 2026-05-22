@@ -117,7 +117,7 @@ def create_pipeline_tab(config: Config, shared: dict) -> None:
         )
         stop_btn = gr.Button(
             "⏹  Зогсоох",
-            variant  = "stop",
+            variant  = "secondary",
             size     = "lg",
             scale    = 1,
             interactive = False,
@@ -161,8 +161,6 @@ def create_pipeline_tab(config: Config, shared: dict) -> None:
         max_lines   = 40,
         interactive = False,
         elem_id     = "pipeline-log",
-        autoscroll  = True,
-        show_copy_button = True,
     )
 
     # ── Үр дүн (товч харуулалт) ───────────────────────────────────────────
