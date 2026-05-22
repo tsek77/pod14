@@ -168,19 +168,27 @@ class InworldTTSClient:
         return self._parse_response(data)
 
     def _build_payload(self, text: str) -> dict:
-        """Inworld TTS API request payload үүсгэнэ."""
-        return {
-            "text": text,
-            "voice": {
-                "name":         self.cfg.INWORLD_VOICE_ID,
-                "languageCode": self.cfg.INWORLD_LANGUAGE,
-            },
+        """Inworld TTS-2 API request payload үүсгэнэ."""
+        payload = {
+            "text":    text,
+            "voiceId": self.cfg.INWORLD_VOICE_ID,
+            "modelId": "inworld-tts-2",
             "audioConfig": {
                 "audioEncoding":   "LINEAR16",   # WAV (PCM 16-bit)
                 "sampleRateHertz": 22050,
             },
-            "enableWordTimeOffsets": True,
+            "timestampAlignment": True,
         }
+
+        # deliveryMode: STABLE | BALANCED | CREATIVE
+        if self.cfg.INWORLD_DELIVERY_MODE:
+            payload["deliveryMode"] = self.cfg.INWORLD_DELIVERY_MODE
+
+        # Хэл (TTS-2 auto-detect хийдэг ч explicit заавал илүү найдвартай)
+        if self.cfg.INWORLD_LANGUAGE:
+            payload["language"] = self.cfg.INWORLD_LANGUAGE
+
+        return payload
 
     def _parse_response(self, data: dict) -> TTSResult:
         """
